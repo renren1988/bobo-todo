@@ -10,6 +10,7 @@ plugins = next((root / '.cache/electron-builder/nsis-resources-3.4.1').glob('*/p
 version = json.loads((root / 'package.json').read_text())['version']
 app = root / f'releases/v{version}/windows/win-unpacked'
 output = root / f'releases/v{version}/windows/BoboTodo-{version}-Windows-Setup.exe'
+assert (app / 'resources/app-update.yml').is_file(), 'Updater config missing; run the full Windows build first'
 script = root / f'artifacts/BoboTodo-installer-{version}.nsi'
 # Delete only files in this build manifest; leave unrelated files and user settings intact.
 remove_files = '\n'.join('  Delete "$INSTDIR\\' + str(f.relative_to(app)).replace('/', '\\') + '"' for f in sorted(app.rglob('*')) if f.is_file())

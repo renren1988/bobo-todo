@@ -47,7 +47,7 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'");
     try {
         const url = new URL(req.url, 'http://localhost');
-        if (url.pathname === '/healthz' && req.method === 'GET') return json(res, 200, { ok: true, app: 'bobo-todo', version: '0.4.0' });
+        if (url.pathname === '/healthz' && req.method === 'GET') return json(res, 200, { ok: true, app: 'bobo-todo', version: '0.4.1' });
         if (url.pathname.startsWith('/api/')) {
             const authRoute = url.pathname.match(/^\/api\/auth\/(register|login|recover|me|logout|migrate|email-code|email-bind|email-reset)$/);
             if (authRoute) return json(res, 200, await accounts.handle(authRoute[1], req.method, req.method === 'POST' ? await body(req) : {}, req));

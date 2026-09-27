@@ -17,3 +17,7 @@ assert.ok(html.includes('auth-email')); assert.ok(html.includes('bind-email-form
 assert.ok(asar.extractFile(root + 'resources/app.asar', 'email.cjs').toString().includes('createMailer'));
 fs.writeFileSync(`artifacts/packaged-check-${version}.json`, JSON.stringify({ version: metadata.version, versions, icons: actual.length, source_contracts: 'passed' }, null, 2));
 console.log('EXE product/name/icon bytes and packaged account UI, loopback-only server, software rendering verified.');
+
+const update = require('js-yaml').load(fs.readFileSync(root + 'resources/app-update.yml', 'utf8'));
+assert.equal(update.provider, 'generic'); assert.equal(update.url, 'https://bobo.taorenlove.live/downloads/updates/'); assert.equal(update.updaterCacheDirName, 'bobo-todo-updater');
+console.log('Packaged Windows update feed and cache configuration verified.');

@@ -7,6 +7,40 @@ function normalizeEmail(value) {
     if (email.length > 254 || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}$/i.test(email)) throw fail('邮箱地址格式不正确');
     return email;
 }
+function verificationMail(code, purpose) {
+    const copy = {
+        register: ['注册账号', '叮！你的小空间准备好啦', '啵啵带着一枚验证码，来迎接你啦。'],
+        bind: ['绑定邮箱', '给你的小空间留个联络方式', '绑好邮箱，就不怕和小事们走散啦。'],
+        reset: ['找回密码', '别着急，啵啵带你回家', '你记下的小事都还在，我们一起找回账号。']
+    }[purpose];
+    if (!copy || typeof code !== 'string' || !/^\d{6}$/.test(code)) throw new Error('Invalid verification email');
+    const [action, title, intro] = copy;
+    return {
+        subject: `啵啵待办 · ${action}验证码`,
+        text: `${title} 🌱\n\n${intro}\n\n${action}验证码：${code}\n\n10 分钟内有效，仅可使用一次。请在啵啵中输入，不要转发给别人。\n如果不是你本人操作，忽略这封邮件就好。\n\n把小事交给小球，把时间留给生活。\n啵啵待办`,
+        html: `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>啵啵待办验证码</title></head>
+<body style="margin:0;padding:0;background:#f8f6ef;color:#40513b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">啵啵送来了${action}验证码，10 分钟内有效。</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8f6ef;"><tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="480" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:480px;background:#ffffff;border:1px solid #e7ebde;border-radius:28px;"><tr><td align="center" style="padding:32px 24px 28px;">
+<p style="margin:0 0 20px;color:#82906e;font-size:12px;letter-spacing:3px;">一封来自啵啵的小信</p>
+<img src="cid:bobo-mascot" width="88" height="88" alt="微笑的啵啵小球" style="display:block;width:88px;height:88px;border:0;border-radius:26px;">
+<h1 style="margin:22px 0 10px;font-size:23px;line-height:1.5;font-weight:700;color:#40513b;">${title}</h1>
+<p style="margin:0;font-size:14px;line-height:1.9;color:#7a8373;">${intro}</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:26px;background:#f0f4e6;border:1px solid #dce6c9;border-radius:20px;"><tr><td align="center" style="padding:23px 12px;">
+<p style="margin:0 0 12px;font-size:12px;color:#78856a;">你的${action}验证码</p>
+<p dir="ltr" style="margin:0;font-family:Consolas,Menlo,monospace;font-size:36px;line-height:1.4;font-weight:700;letter-spacing:6px;color:#526b3e;">${code}</p>
+<p style="margin:12px 0 0;font-size:12px;line-height:1.8;color:#7a876d;">10 分钟内有效 · 只用一次的小暗号</p>
+</td></tr></table>
+<p style="margin:23px 0 0;font-size:13px;line-height:1.9;color:#788270;">回到啵啵，输入上面的小暗号就好。<br>请把它留给自己，不要转发给别人哦。</p>
+<p style="margin:18px 0 0;font-size:12px;line-height:1.8;color:#949c8c;">如果不是你本人操作，忽略这封邮件就好。</p>
+</td></tr></table>
+<p style="margin:22px 0 5px;font-size:12px;line-height:1.8;color:#929b85;">把小事交给小球，把时间留给生活。</p>
+<p style="margin:0;font-size:12px;color:#a4ac9a;">啵啵待办 · 陪你慢慢完成每一件小事</p>
+</td></tr></table></body></html>`,
+        attachments: [{ filename: 'bobo.png', path: require('path').join(__dirname, 'public/icon192.png'), cid: 'bobo-mascot', contentDisposition: 'inline' }]
+    };
+}
 function createMailer(env = process.env) {
     const configured = !!(env.BOBO_SMTP_HOST && env.BOBO_SMTP_USER && env.BOBO_SMTP_PASSWORD && env.BOBO_MAIL_FROM);
     if (!configured) return { configured: false, send: async () => { throw fail('邮件服务尚未配置，请联系管理员', 503); } };
@@ -16,10 +50,7 @@ function createMailer(env = process.env) {
         auth: { user: env.BOBO_SMTP_USER, pass: env.BOBO_SMTP_PASSWORD }, tls: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
         connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000 });
     return { configured: true, async send({ to, code, purpose }) {
-        const action = { register: '注册账号', bind: '绑定邮箱', reset: '找回密码' }[purpose];
-        const result = await transport.sendMail({ from: env.BOBO_MAIL_FROM, to,
-            subject: `啵啵待办 · ${action}验证码`,
-            text: `你正在${action}，验证码：${code}\n\n验证码 10 分钟内有效，仅可使用一次。请勿转发验证码。\n如果不是你本人操作，请忽略本邮件。\n\n啵啵待办` });
+        const result = await transport.sendMail({ from: env.BOBO_MAIL_FROM, to, ...verificationMail(code, purpose) });
         if (!result.accepted?.length) throw new Error('Mail recipient was not accepted');
     } };
 }
@@ -67,4 +98,4 @@ function createEmailCodes(db, save, mailer, now = Date.now) {
     function clear(owner) { db.emailChallenges = db.emailChallenges.filter(c => c.owner !== owner); }
     return { send, check, consume, clear };
 }
-module.exports = { createMailer, createEmailCodes, normalizeEmail };
+module.exports = { createMailer, createEmailCodes, normalizeEmail, verificationMail };

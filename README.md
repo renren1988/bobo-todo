@@ -6,7 +6,7 @@
 
 <p align="center"><img src="public/icon.svg" width="128" alt="啵啵待办图标"></p>
 
-> 当前正式版：**0.4.0 邮箱验证版**，已提供邮箱验证注册、老账号绑定邮箱和邮件找回密码。
+> 当前服务端 / Windows：**0.4.1**（可爱验证码邮件、修复更新下载）；Android：**0.4.0**。Windows 旧版请手动覆盖安装一次。
 > [更新日志](CHANGELOG.md) · [GitHub Releases](https://github.com/renren1988/bobo-todo/releases)
 
 ## 功能
@@ -21,7 +21,7 @@
 
 ## 使用
 
-[打开网页版](https://bobo.taorenlove.live/) · [Windows 0.4.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.4.0-Windows-Setup.exe) · [Android 0.4.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.4.0-Android.apk)
+[打开网页版](https://bobo.taorenlove.live/) · [Windows 0.4.1](https://bobo.taorenlove.live/downloads/BoboTodo-0.4.1-Windows-Setup.exe) · [Android 0.4.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.4.0-Android.apk)
 
 新注册需要邮箱验证码，已有账号可在设置中绑定邮箱。注册或重置密码后也请保存恢复码。电脑与手机登录同一个账号即可共享待办。当前官方客户端连接上面的官方服务；自行部署时请阅读 [部署说明](deploy/README.md)。
 
@@ -47,7 +47,7 @@ Electron 和 Android 客户端默认连接官方 HTTPS 服务；本地网页使�
 
 ## 构建
 
-Windows：在 Windows 开发机执行 `npm ci`，然后 `npm run build:win`。生成 NSIS 安装器和 ZIP，支持选择安装路径。构建输出位于 `releases/v0.4.0/windows/`。开源配置使用 electron-builder 标准安装器；官方安装包使用自定义 NSIS 脚本，保留在 `scripts/build-windows-installer.py` 供参考，它需要额外 NSIS 工具链。新的标准安装器未在 Windows 实机验证。
+Windows：在 Windows 开发机执行 `npm ci`，然后 `npm run build:win`。生成 NSIS 安装器和 ZIP，支持选择安装路径。构建输出位于 `releases/v0.4.1/windows/`。开源配置使用 electron-builder 标准安装器；官方安装包使用自定义 NSIS 脚本，保留在 `scripts/build-windows-installer.py` 供参考，它需要额外 NSIS 工具链。新的标准安装器未在 Windows 实机验证。
 
 Android：目前使用 Python 3、JDK 17 和 Android SDK 命令行工具构建，无 Gradle。将 JDK 17 放到 `.runtime/tooling/amazon-corretto-17*/`，将包含 `aapt2`、`d8`、`zipalign`、`apksigner` 的 build-tools 目录及包含 `android.jar` 的 Android 35 platform 目录放到 `.runtime/android-sdk/` 的直属子目录，然后运行：
 

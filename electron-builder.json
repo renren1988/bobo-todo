@@ -2,7 +2,7 @@
   "appId": "com.bobo.todo",
   "productName": "啵啵待办",
   "directories": {
-    "output": "releases/v0.4.0/windows",
+    "output": "releases/v0.4.1/windows",
     "buildResources": "desktop"
   },
   "files": [
@@ -44,5 +44,6 @@
     ],
     "artifactName": "BoboTodo-${version}-Windows-Setup.${ext}",
     "deleteAppDataOnUninstall": false
-  }
+  },
+  "afterPack": "scripts/after-pack.cjs"
 }
