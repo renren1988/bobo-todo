@@ -6,7 +6,7 @@
 
 <p align="center"><img src="public/icon.svg" width="128" alt="啵啵待办图标"></p>
 
-> 当前正式版：**0.3.0**。仓库正在准备 **0.4.0 邮箱验证版**，需完成 SMTP 配置和实际投递验证后上线。
+> 当前正式版：**0.4.0 邮箱验证版**，已提供邮箱验证注册、老账号绑定邮箱和邮件找回密码。
 > [更新日志](CHANGELOG.md) · [GitHub Releases](https://github.com/renren1988/bobo-todo/releases)
 
 ## 功能
@@ -21,9 +21,9 @@
 
 ## 使用
 
-[打开网页版](https://bobo.taorenlove.live/) · [Windows 0.3.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.3.0-Windows-Setup.exe) · [Android 0.3.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.3.0-Android.apk)
+[打开网页版](https://bobo.taorenlove.live/) · [Windows 0.4.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.4.0-Windows-Setup.exe) · [Android 0.4.0](https://bobo.taorenlove.live/downloads/BoboTodo-0.4.0-Android.apk)
 
-正式版 0.3.0 注册后请保存恢复码。0.4.0 新注册需要邮箱验证码，已有账号可在设置中绑定邮箱。电脑与手机登录同一个账号即可共享待办。当前官方客户端连接上面的官方服务；自行部署时请阅读 [部署说明](deploy/README.md)。
+新注册需要邮箱验证码，已有账号可在设置中绑定邮箱。注册或重置密码后也请保存恢复码。电脑与手机登录同一个账号即可共享待办。当前官方客户端连接上面的官方服务；自行部署时请阅读 [部署说明](deploy/README.md)。
 
 ## 本地运行
 
@@ -47,7 +47,7 @@ Electron 和 Android 客户端默认连接官方 HTTPS 服务；本地网页使�
 
 ## 构建
 
-Windows：在 Windows 开发机执行 `npm ci`，然后 `npm run build:win`。生成 NSIS 安装器和 ZIP，支持选择安装路径。构建输出位于 `releases/v0.4.0/windows/`。开源配置使用 electron-builder 标准安装器；官方 0.3.0 曾使用自定义 NSIS 脚本，保留在 `scripts/build-windows-installer.py` 供参考，它需要额外 NSIS 工具链。新的标准安装器未在 Windows 实机验证。
+Windows：在 Windows 开发机执行 `npm ci`，然后 `npm run build:win`。生成 NSIS 安装器和 ZIP，支持选择安装路径。构建输出位于 `releases/v0.4.0/windows/`。开源配置使用 electron-builder 标准安装器；官方安装包使用自定义 NSIS 脚本，保留在 `scripts/build-windows-installer.py` 供参考，它需要额外 NSIS 工具链。新的标准安装器未在 Windows 实机验证。
 
 Android：目前使用 Python 3、JDK 17 和 Android SDK 命令行工具构建，无 Gradle。将 JDK 17 放到 `.runtime/tooling/amazon-corretto-17*/`，将包含 `aapt2`、`d8`、`zipalign`、`apksigner` 的 build-tools 目录及包含 `android.jar` 的 Android 35 platform 目录放到 `.runtime/android-sdk/` 的直属子目录，然后运行：
 
@@ -78,6 +78,10 @@ Windows 需应用运行才能提醒，关机或休眠时不能即时提醒。And
 ## 邮件服务（0.4.0）
 
 在服务端配置 `BOBO_SMTP_HOST`、`BOBO_SMTP_PORT`（465 或 587）、`BOBO_SMTP_USER`、`BOBO_SMTP_PASSWORD`、`BOBO_MAIL_FROM`。SMTP 强制 TLS；常见邮箱需要单独开启 SMTP 并使用授权码。具体配置见 [部署文档](deploy/README.md)。
+
+**配置放哪里：**复制 `deploy/.env.example` 为 `deploy/.env`，把自己的发信邮箱和 SMTP 授权码填进去。Docker 部署在 `deploy/` 目录执行 `docker compose up -d --build bobo`；直接运行 Node.js 则在项目根目录执行 `node --env-file=deploy/.env server.cjs`。重启服务后配置生效。
+
+`deploy/.env` 是私有文件，不要上传到 GitHub；仓库只提供变量名和占位示例，不包含维护者的发信邮箱、SMTP 授权码或服务器凭据。
 
 验证码 10 分钟有效、最多验证 5 次、一次性使用。发送按邮箱和来源限流。密码重置后撤销该账号所有旧会话和推送订阅，并替换恢复码。自动测试使用模拟发信器，不会向真实邮箱发送邮件。
 

@@ -15,3 +15,6 @@ deploy/state/
 *.log
 __pycache__/
 .DS_Store
+
+# Private mail configuration
+*.env
