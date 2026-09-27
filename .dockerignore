@@ -1,0 +1,10 @@
+node_modules
+.cache
+.runtime
+artifacts
+releases
+android
+tests
+deploy/state
+deploy/.env
+.git

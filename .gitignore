@@ -1,0 +1,17 @@
+node_modules/
+.cache/
+.runtime/
+artifacts/
+releases/
+deploy/state/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*.log
+__pycache__/
+.DS_Store

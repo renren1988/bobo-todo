@@ -1,0 +1,28 @@
+{
+  "name": "bobo-todo",
+  "version": "0.3.0",
+  "private": true,
+  "description": "啵啵待办",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "node server.cjs",
+    "desktop": "node desktop/launch.cjs",
+    "test": "node --test tests/server.test.cjs tests/accounts.test.cjs",
+    "test:ui": "npm run pretest && node tests/account-ui.cjs",
+    "build:win": "electron-builder --win nsis zip --x64 --config electron-builder.json",
+    "pretest": "node -e \"require('fs').mkdirSync('artifacts', {recursive:true})\""
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2",
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "playwright": "1.40.1",
+    "ssh2": "^1.17.0"
+  },
+  "author": "Bobo Todo",
+  "productName": "啵啵待办",
+  "license": "MIT"
+}

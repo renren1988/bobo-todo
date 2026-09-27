@@ -1,0 +1,10 @@
+const button = document.getElementById('orb');
+let start = null, moved = false;
+button.onpointerdown = e => { if (e.button !== 0) return; start = { x: e.screenX, y: e.screenY }; moved = false; button.setPointerCapture(e.pointerId); window.boboDesktop.dragStart(); };
+button.onpointermove = e => { if (!start) return; if (Math.hypot(e.screenX - start.x, e.screenY - start.y) > 5) moved = true; if (moved) window.boboDesktop.dragMove(); };
+button.onpointerup = () => { start = null; window.boboDesktop.dragEnd(); };
+button.onpointercancel = () => { start = null; moved = true; window.boboDesktop.dragEnd(); };
+button.onclick = () => { if (!moved) window.boboDesktop.open(); };
+button.ondragover = e => { e.preventDefault(); };
+button.ondrop = e => { e.preventDefault(); window.boboDesktop.drop(e.dataTransfer.getData('text/plain')); };
+window.boboDesktop.onCount(count => { document.getElementById('count').textContent = count; });

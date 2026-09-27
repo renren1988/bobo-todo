@@ -1,0 +1,47 @@
+{
+  "appId": "com.bobo.todo",
+  "productName": "啵啵待办",
+  "directories": {
+    "output": "releases/v0.3.0/windows",
+    "buildResources": "desktop"
+  },
+  "files": [
+    "desktop/main.cjs",
+    "desktop/preload.cjs",
+    "desktop/connection.cjs",
+    "desktop/icon.ico",
+    "public/**/*",
+    "server.cjs",
+    "package.json",
+    "accounts.cjs"
+  ],
+  "asar": true,
+  "publish": {
+    "provider": "generic",
+    "url": "https://bobo.taorenlove.live/downloads/updates/"
+  },
+  "win": {
+    "icon": "desktop/icon.ico",
+    "target": [
+      "nsis",
+      "zip"
+    ],
+    "artifactName": "BoboTodo-${version}-Windows-${arch}.${ext}",
+    "executableName": "BoboTodo",
+    "signExecutable": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "啵啵待办",
+    "installerLanguages": [
+      "zh_CN",
+      "en_US"
+    ],
+    "artifactName": "BoboTodo-${version}-Windows-Setup.${ext}",
+    "deleteAppDataOnUninstall": false
+  }
+}

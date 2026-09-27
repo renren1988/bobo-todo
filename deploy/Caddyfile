@@ -1,0 +1,7 @@
+{
+    email {$CONTACT_EMAIL}
+}
+{$BOBO_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy bobo:8787
+}

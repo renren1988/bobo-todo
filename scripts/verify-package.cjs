@@ -1,0 +1,16 @@
+const fs = require('fs'), assert = require('assert/strict'), r = require('resedit'), asar = require('@electron/asar');
+const root = 'releases/v0.3.0/windows/win-unpacked/';
+const res = r.NtExecutableResource.from(r.NtExecutable.from(fs.readFileSync(root + 'BoboTodo.exe')));
+const versions = r.Resource.VersionInfo.fromEntries(res.entries).map(v => v.getStringValues({ lang: 1033, codepage: 1200 }));
+assert.equal(versions[0].ProductName, '啵啵待办'); assert.equal(versions[0].FileDescription, '啵啵待办');
+const raw = i => Buffer.from(i.isRaw() ? i.bin : i.generate()).toString('base64');
+const groups = r.Resource.IconGroupEntry.fromEntries(res.entries);
+const actual = groups[0].getIconItemsFromEntries(res.entries).map(raw).sort();
+const desired = r.Data.IconFile.from(fs.readFileSync('desktop/icon.ico')).icons.map(i => raw(i.data)).sort(); assert.deepEqual(actual, desired);
+const main = asar.extractFile(root + 'resources/app.asar', 'desktop/main.cjs').toString();
+assert.ok(main.includes('app.disableHardwareAcceleration()')); assert.ok(main.includes("'127.0.0.1'")); assert.ok(!main.includes('0.0.0.0')); assert.ok(!main.includes('networkInterfaces'));
+const html = asar.extractFile(root + 'resources/app.asar', 'public/index.html').toString();
+assert.ok(html.includes('auth-register')); assert.ok(!html.includes('share-token')); assert.ok(!html.includes('server-url'));
+const metadata = JSON.parse(asar.extractFile(root + 'resources/app.asar', 'package.json')); assert.equal(metadata.version, '0.3.0');
+fs.writeFileSync('artifacts/accounts_20260926/packaged-check.json', JSON.stringify({ version: metadata.version, versions, icons: actual.length, source_contracts: 'passed' }, null, 2));
+console.log('EXE product/name/icon bytes and packaged account UI, loopback-only server, software rendering verified.');

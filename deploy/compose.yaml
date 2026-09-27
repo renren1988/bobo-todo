@@ -1,0 +1,27 @@
+services:
+  bobo:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      BOBO_PUSH_CONTACT: mailto:${CONTACT_EMAIL:?Set CONTACT_EMAIL}
+    volumes:
+      - ./state/bobo:/app/.runtime/server
+    expose:
+      - "8787"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - bobo
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      BOBO_DOMAIN: ${BOBO_DOMAIN:?Set BOBO_DOMAIN}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:?Set CONTACT_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./state/caddy-data:/data
+      - ./state/caddy-config:/config
