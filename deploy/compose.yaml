@@ -6,6 +6,11 @@ services:
     restart: unless-stopped
     environment:
       BOBO_PUSH_CONTACT: mailto:${CONTACT_EMAIL:?Set CONTACT_EMAIL}
+      BOBO_SMTP_HOST: ${BOBO_SMTP_HOST:-}
+      BOBO_SMTP_PORT: ${BOBO_SMTP_PORT:-465}
+      BOBO_SMTP_USER: ${BOBO_SMTP_USER:-}
+      BOBO_SMTP_PASSWORD: ${BOBO_SMTP_PASSWORD:-}
+      BOBO_MAIL_FROM: ${BOBO_MAIL_FROM:-}
     volumes:
       - ./state/bobo:/app/.runtime/server
     expose:

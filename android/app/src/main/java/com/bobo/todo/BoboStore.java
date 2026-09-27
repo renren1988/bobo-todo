@@ -36,10 +36,10 @@ public final class BoboStore {
     }
     static JSONObject request(JSONObject value) throws Exception {
         String route = value.getString("route"), method = value.getString("method"), token = value.getString("token");
-        if (!route.matches("tasks(/[a-f0-9-]+)?|push|auth/(register|login|recover|me|logout|migrate)") || !Arrays.asList("GET", "POST", "PUT", "DELETE").contains(method) || token.length() > 256) throw new IOException("无效请求");
+        if (!route.matches("tasks(/[a-f0-9-]+)?|push|auth/(register|login|recover|me|logout|migrate|email-code|email-bind|email-reset)") || !Arrays.asList("GET", "POST", "PUT", "DELETE").contains(method) || token.length() > 256) throw new IOException("无效请求");
         URL url = new URL(validateUrl(value.getString("url")) + "/api/" + route);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(4000); conn.setReadTimeout(5000); conn.setInstanceFollowRedirects(false);
+        conn.setConnectTimeout(4000); conn.setReadTimeout(route.equals("auth/email-code") ? 45000 : 5000); conn.setInstanceFollowRedirects(false);
         conn.setRequestMethod(method); conn.setRequestProperty("Authorization", "Bearer " + token);
         conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
         try {

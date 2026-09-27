@@ -2,7 +2,7 @@
   "appId": "com.bobo.todo",
   "productName": "啵啵待办",
   "directories": {
-    "output": "releases/v0.3.0/windows",
+    "output": "releases/v0.4.0/windows",
     "buildResources": "desktop"
   },
   "files": [
@@ -13,7 +13,8 @@
     "public/**/*",
     "server.cjs",
     "package.json",
-    "accounts.cjs"
+    "accounts.cjs",
+    "email.cjs"
   ],
   "asar": true,
   "publish": {

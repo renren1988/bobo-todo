@@ -5,11 +5,18 @@ const path = require('path');
 const { createServer } = require('../server.cjs');
 test('accounts isolate data, persist sessions, recover passwords, revoke logouts and migrate legacy only with proof', async t => {
     const dataDir = fs.mkdtempSync(path.join(__dirname, '../artifacts/accounts-test-'));
-    let app = createServer({ dataDir });
+    const messages = []; const mailer = { configured: true, send: async message => messages.push(message) };
+    const registrations = new Map();
+    let app = createServer({ dataDir, mailer });
     await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
     t.after(() => new Promise(resolve => app.server.close(resolve)));
     let base = 'http://127.0.0.1:' + app.server.address().port;
     const api = async (route, method = 'GET', data, token = '') => {
+        if (route === 'auth/register' && !data.email) {
+            const email = data.username.toLowerCase() + '@example.com';
+            if (!registrations.has(email)) registrations.set(email, api('auth/email-code', 'POST', { email, purpose: 'register' }).then(result => ({ email, challengeId: result.challengeId, code: messages.find(m => m.to === email).code })));
+            data = { ...data, ...await registrations.get(email) };
+        }
         const res = await fetch(base + '/api/' + route, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
         return { status: res.status, ...(await res.json()) };
     };
@@ -34,7 +41,7 @@ test('accounts isolate data, persist sessions, recover passwords, revoke logouts
     assert.equal(app.db.tasks.length, 1, 'legacy source remains archived');
     const disk = fs.readFileSync(path.join(dataDir, 'space.json'), 'utf8');
     assert.ok(!disk.includes(password)); assert.ok(!disk.includes(alice.token)); assert.ok(!disk.includes(alice.recoveryCode));
-    await new Promise(resolve => app.server.close(resolve)); app = createServer({ dataDir });
+    await new Promise(resolve => app.server.close(resolve)); app = createServer({ dataDir, mailer });
     await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve)); base = 'http://127.0.0.1:' + app.server.address().port;
     assert.equal((await api('tasks', 'GET', null, phone.token)).tasks.length, 2);
     await api('auth/logout', 'POST', {}, phone.token);

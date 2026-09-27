@@ -21,6 +21,8 @@ let tasks = token ? read('bobo-cache', []) : [];
 if (token && Array.isArray(deviceConnection?.tasks)) tasks = deviceConnection.tasks;
 let filter = 'all', completed = false, editing = null, online = !token, syncing = false, mutating = false;
 let pushKey = '', pushEnabled = false, authMode = 'login', authBusy = false;
+let recoveryMethod = 'email', authChallenge = null, bindChallenge = null;
+const codeCooldowns = new Map();
 let sent = read('bobo-reminded', {});
 const labels = { work: '工作', study: '学习', life: '生活' };
 const iconPaths = {
@@ -56,7 +58,7 @@ function persist() { if (token) write('bobo-cache', tasks); }
 async function api(route, method = 'GET', data, auth = token, url = apiBase) {
     if (window.boboDevice) return window.boboDevice.request({ route, method, data, token: auth, url });
     if (new URL(url).origin !== location.origin) throw new Error('网页版请直接打开待办空间的地址');
-    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000);
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), route === 'auth/email-code' ? 45000 : 10000);
     try {
         const response = await fetch('/api/' + route, { method, headers: { Authorization: 'Bearer ' + auth, ...(data ? { 'Content-Type': 'application/json' } : {}) }, body: data ? JSON.stringify(data) : undefined, signal: controller.signal });
         const value = await response.json();
@@ -71,6 +73,8 @@ function syncState() {
     document.body.classList.toggle('connected', !!token && online);
     $('auth-panel').hidden = !!token; $('account-panel').hidden = !token;
     $('account-name').textContent = account?.username || '我的啵啵账号';
+    $('account-email-status').textContent = account?.emailVerified ? '已验证邮箱：' + account.email : '尚未绑定邮箱';
+    $('bind-email-form').hidden = !token || !!account?.emailVerified;
     $('avatar-settings').textContent = account?.username?.slice(0, 1).toUpperCase() || '我';
     $('migration-panel').hidden = !(token && (localStorage.getItem('bobo-legacy-token') || read('bobo-pending-import', []).length));
 }
@@ -165,19 +169,60 @@ document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { filt
 $('tab-pending').onclick = () => { completed = false; if (filter === 'done') filter = 'all'; render(); };
 $('tab-done').onclick = () => { completed = true; render(); };
 function changeAuth(mode) {
-    authMode = mode;
+    authMode = mode; authChallenge = null;
+    const emailMode = mode === 'register' || (mode === 'recover' && recoveryMethod === 'email');
     $('confirm-field').hidden = mode === 'login'; $('auth-confirm').required = mode !== 'login';
-    $('recover-field').hidden = mode !== 'recover'; $('auth-recovery').required = mode === 'recover';
+    $('email-auth-fields').hidden = !emailMode; $('auth-email').required = emailMode; $('auth-code').required = emailMode;
+    $('recover-field').hidden = mode !== 'recover' || emailMode; $('auth-recovery').required = mode === 'recover' && !emailMode;
+    $('recover-method').hidden = mode !== 'recover';
+    $('recover-method').textContent = emailMode ? '改用恢复码找回' : '改用邮箱找回';
+    $('auth-username').hidden = mode === 'recover' && emailMode;
+    document.querySelector('label[for="auth-username"]').hidden = $('auth-username').hidden;
+    $('auth-username').required = !$('auth-username').hidden;
+    $('auth-username').disabled = $('auth-username').hidden;
+    $('auth-email').disabled = !emailMode; $('auth-code').disabled = !emailMode;
+    $('auth-recovery').disabled = mode !== 'recover' || emailMode;
+    $('auth-confirm').disabled = mode === 'login';
     $('auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
     $('password-label').textContent = mode === 'recover' ? '设置新密码' : '密码';
-    $('auth-submit').textContent = ({login:'登录我的啵啵', register:'注册并开启小空间', recover:'恢复账号并登录'})[mode];
-    $('auth-hint').textContent = mode === 'register' ? '注册后会生成恢复码，请保存，用于忘记密码时找回账号。' : mode === 'recover' ? '输入注册时保存的恢复码。重置后其他设备需要重新登录。' : '登录后，在另一台设备使用同一账号即可同步。';
+    $('auth-submit').textContent = ({login:'登录我的啵啵', register:'验证邮箱并注册', recover:'重置密码并登录'})[mode];
+    $('auth-hint').textContent = mode === 'register' ? '验证邮箱后开启专属空间，邮箱也可用于找回密码。' : mode === 'recover' ? (emailMode ? '请输入已绑定的邮箱。重置后其他设备需要重新登录。' : '未绑定邮箱的老账号仍可使用恢复码找回。') : '登录后，在另一台设备使用同一账号即可同步。';
     ['login','register','recover'].forEach(m => $('auth-' + m).classList.toggle('selected', m === mode));
-    $('auth-error').textContent = '';
+    $('auth-error').textContent = ''; $('email-send-status').textContent = ''; $('auth-code').value = '';
 }
-['login','register','recover'].forEach(mode => $('auth-' + mode).onclick = () => changeAuth(mode));
+['login','register','recover'].forEach(mode => $('auth-' + mode).onclick = () => { recoveryMethod = 'email'; changeAuth(mode); });
+$('recover-method').onclick = () => { recoveryMethod = recoveryMethod === 'email' ? 'code' : 'email'; changeAuth('recover'); };
+async function sendEmailCode(binding) {
+    const button = $(binding ? 'send-bind-code' : 'send-auth-code');
+    const status = $(binding ? 'bind-status' : 'email-send-status');
+    const emailInput = $(binding ? 'bind-email' : 'auth-email');
+    if (!emailInput.value || !emailInput.reportValidity()) return;
+    const email = emailInput.value.trim().toLowerCase();
+    if ((codeCooldowns.get(email) || 0) > Date.now()) { status.textContent = '请稍后再发送验证码（每分钟一次）。'; return; }
+    const purpose = binding ? 'bind' : authMode === 'register' ? 'register' : 'reset';
+    button.disabled = true; status.textContent = '正在发送…';
+    try {
+        const result = await api('auth/email-code', 'POST', { email, purpose, ...(binding ? {password: $('bind-password').value} : {}) }, binding ? token : '');
+        const challenge = { id: result.challengeId, email, purpose };
+        if (binding) bindChallenge = challenge; else authChallenge = challenge;
+        codeCooldowns.set(email, Date.now() + result.retryAfter * 1000); status.textContent = result.message;
+    } catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+}
+$('send-auth-code').onclick = () => sendEmailCode(false);
+$('send-bind-code').onclick = () => sendEmailCode(true);
+$('bind-email-form').onsubmit = async event => {
+    event.preventDefault(); $('bind-submit').disabled = true;
+    try {
+        const email = $('bind-email').value.trim().toLowerCase();
+        if (!bindChallenge || bindChallenge.email !== email) throw new Error('请先获取此邮箱的验证码');
+        const result = await api('auth/email-bind', 'POST', {email, challengeId: bindChallenge.id, code: $('bind-code').value.trim(), password: $('bind-password').value});
+        account = result.user; write('bobo-account', account); bindChallenge = null; $('bind-email-form').reset(); syncState(); toast('邮箱已验证并绑定');
+    } catch (error) { $('bind-status').textContent = error.message; }
+    finally { $('bind-submit').disabled = false; }
+};
 async function clearAccount() {
-    token = ''; account = null; tasks = []; pushEnabled = false;
+    token = ''; account = null; tasks = []; pushEnabled = false; bindChallenge = null; authChallenge = null; $('bind-email-form').reset(); $('bind-status').textContent = '';
     localStorage.removeItem('bobo-token'); localStorage.removeItem('bobo-account'); localStorage.removeItem('bobo-cache');
     if (window.boboDevice) await window.boboDevice.setConnection(null);
     window.boboDevice?.updateTasks([]); render();
@@ -187,7 +232,13 @@ $('auth-form').onsubmit = async event => {
     authBusy = true; $('auth-submit').disabled = true; $('auth-error').textContent = '';
     try {
         if (authMode !== 'login' && $('auth-password').value !== $('auth-confirm').value) throw new Error('两次输入的密码不一致');
-        const result = await api('auth/' + authMode, 'POST', { username: $('auth-username').value.trim(), password: $('auth-password').value, recoveryCode: $('auth-recovery').value.trim() }, '');
+        const emailMode = authMode === 'register' || (authMode === 'recover' && recoveryMethod === 'email');
+        const email = $('auth-email').value.trim().toLowerCase();
+        const purpose = authMode === 'register' ? 'register' : 'reset';
+        if (emailMode && (!authChallenge || authChallenge.email !== email || authChallenge.purpose !== purpose)) throw new Error('请先获取此邮箱的验证码');
+        const route = authMode === 'recover' && emailMode ? 'email-reset' : authMode;
+        const result = await api('auth/' + route, 'POST', { username: $('auth-username').value.trim(), password: $('auth-password').value, recoveryCode: $('auth-recovery').value.trim(), ...(emailMode ? {email, challengeId: authChallenge.id, code: $('auth-code').value.trim()} : {}) }, '');
+        authChallenge = null; $('auth-code').value = '';
         if (window.boboDevice) await window.boboDevice.setConnection({ url: apiBase, token: result.token });
         token = result.token; account = result.user; tasks = []; online = true;
         localStorage.setItem('bobo-token', token); write('bobo-account', account); persist();
@@ -313,7 +364,7 @@ if (window.boboDevice) {
 }
 if (!token && window.boboDevice) await window.boboDevice.setConnection(null);
 render(); await sync(); checkReminders();
-if (token && !account) { try { const info = await api('auth/me'); account = info.user; write('bobo-account', account); syncState(); } catch {} }
+if (token) { try { const info = await api('auth/me'); account = info.user; write('bobo-account', account); syncState(); } catch {} }
 setInterval(sync, 5000); setInterval(checkReminders, 10000); setInterval(render, 60000);
 
 })().catch(error => { console.error(error); document.getElementById("toast").hidden = false; document.getElementById("toast").textContent = "启动遇到问题：" + error.message; });

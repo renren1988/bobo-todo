@@ -4,7 +4,7 @@ function validateUrl(value) {
     return url.origin;
 }
 function validateRequest(value) {
-    if (!value || !/^(tasks(?:\/[a-f0-9-]+)?|push|auth\/(register|login|recover|me|logout|migrate))$/.test(value.route) || !['GET', 'POST', 'PUT', 'DELETE'].includes(value.method)) throw new Error('请求不正确');
+    if (!value || !/^(tasks(?:\/[a-f0-9-]+)?|push|auth\/(register|login|recover|me|logout|migrate|email-code|email-bind|email-reset))$/.test(value.route) || !['GET', 'POST', 'PUT', 'DELETE'].includes(value.method)) throw new Error('请求不正确');
     if (typeof value.token !== 'string' || value.token.length > 256 || JSON.stringify(value.data || {}).length > 16384) throw new Error('请求不正确');
     return validateUrl(value.url);
 }

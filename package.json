@@ -1,19 +1,20 @@
 {
   "name": "bobo-todo",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "啵啵待办",
   "main": "desktop/main.cjs",
   "scripts": {
     "start": "node server.cjs",
     "desktop": "node desktop/launch.cjs",
-    "test": "node --test tests/server.test.cjs tests/accounts.test.cjs",
+    "test": "node --test tests/server.test.cjs tests/accounts.test.cjs tests/email.test.cjs",
     "test:ui": "npm run pretest && node tests/account-ui.cjs",
     "build:win": "electron-builder --win nsis zip --x64 --config electron-builder.json",
     "pretest": "node -e \"require('fs').mkdirSync('artifacts', {recursive:true})\""
   },
   "dependencies": {
     "electron-updater": "^6.6.2",
+    "nodemailer": "10.0.11",
     "web-push": "3.6.7"
   },
   "devDependencies": {

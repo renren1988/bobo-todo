@@ -11,7 +11,7 @@
         if (result.error) entry.reject(new Error(result.error)); else entry.resolve(result.value);
     };
     const call = (action, value) => new Promise((resolve, reject) => {
-        const id = next++, timer = setTimeout(() => { pending.delete(id); reject(new Error('设备暂时没有响应，请重试')); }, 20000);
+        const id = next++, timer = setTimeout(() => { pending.delete(id); reject(new Error('设备暂时没有响应，请重试')); }, action === 'request' && value?.route === 'auth/email-code' ? 55000 : 20000);
         pending.set(id, { resolve, reject, timer }); window.BoboAndroid.call(id, JSON.stringify({ action, value }));
     });
     window.boboDevice = {

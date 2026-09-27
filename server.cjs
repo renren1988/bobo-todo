@@ -17,7 +17,7 @@ function save() {
     fs.writeFileSync(dbPath + '.new', JSON.stringify(db, null, 2), { mode: 0o600 });
     fs.renameSync(dbPath + '.new', dbPath);
 }
-const accounts = createAccounts(db, save);
+const accounts = createAccounts(db, save, { mailer: options.mailer, now: options.now });
 save();
 webpush.setVapidDetails(process.env.BOBO_PUSH_CONTACT || 'mailto:admin@example.com', db.vapid.publicKey, db.vapid.privateKey);
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
@@ -47,9 +47,9 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'");
     try {
         const url = new URL(req.url, 'http://localhost');
-        if (url.pathname === '/healthz' && req.method === 'GET') return json(res, 200, { ok: true, app: 'bobo-todo', version: '0.3.0' });
+        if (url.pathname === '/healthz' && req.method === 'GET') return json(res, 200, { ok: true, app: 'bobo-todo', version: '0.4.0' });
         if (url.pathname.startsWith('/api/')) {
-            const authRoute = url.pathname.match(/^\/api\/auth\/(register|login|recover|me|logout|migrate)$/);
+            const authRoute = url.pathname.match(/^\/api\/auth\/(register|login|recover|me|logout|migrate|email-code|email-bind|email-reset)$/);
             if (authRoute) return json(res, 200, await accounts.handle(authRoute[1], req.method, req.method === 'POST' ? await body(req) : {}, req));
             const principal = accounts.authenticate(req);
             if (!principal) return json(res, 401, { error: '登录已失效，请重新登录' });

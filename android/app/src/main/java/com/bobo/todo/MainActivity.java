@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
             }
         });
         web.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return !request.getUrl().toString().equals(ORIGIN + "/"); }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { if (request.isForMainFrame() && request.getUrl().toString().equals("https://github.com/renren1988/bobo-todo/releases")) { try { startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl())); } catch (Exception ignored) {} return true; } return !request.getUrl().toString().equals(ORIGIN + "/"); }
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl(); String name = uri.getPath();
                 if (!uri.getScheme().equals("https") || !uri.getHost().equals("bobo.local")) return denied();

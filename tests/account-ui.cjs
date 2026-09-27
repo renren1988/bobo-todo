@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { createServer } = require('../server.cjs');
 const dataDir = fs.mkdtempSync(path.join(__dirname, '../artifacts/account-ui-'));
-const { server, db } = createServer({ dataDir });
+let now = Date.now();
+const messages = [];
+const { server, db } = createServer({ dataDir, now: () => now, mailer: { configured: true, send: async message => messages.push(message) } });
 (async () => {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const base = 'http://127.0.0.1:' + server.address().port;
@@ -19,7 +21,13 @@ const { server, db } = createServer({ dataDir });
             await page.goto(base); await page.locator('#mode-label').click();
             if (mode === 'register') await page.locator('#auth-register').click();
             await page.locator('#auth-username').fill(name); await page.locator('#auth-password').fill('password-test-123');
-            if (mode === 'register') await page.locator('#auth-confirm').fill('password-test-123');
+            if (mode === 'register') {
+                await page.locator('#auth-confirm').fill('password-test-123');
+                await page.locator('#auth-email').fill(name + '@example.com');
+                await page.locator('#send-auth-code').click();
+                await page.locator('#email-send-status').filter({hasText:'验证码已发送'}).waitFor();
+                await page.locator('#auth-code').fill(messages.find(m => m.to === name + '@example.com').code);
+            }
             await page.locator('#auth-submit').click(); await page.locator('#account-name').filter({hasText:name}).waitFor();
         }
         await auth(desktop, 'ui_alice', 'register');
@@ -42,7 +50,30 @@ const { server, db } = createServer({ dataDir });
         assert.equal(await phone.locator('.task-row').count(),0);
         assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true);
         await phone.screenshot({path:path.join(dataDir,'mobile.png'),animations:'disabled'});
+        // Existing accounts can bind an email without changing their tasks or username.
+        const legacy = db.accounts.find(a => a.username === 'ui_bob'); delete legacy.email; delete legacy.emailVerifiedAt;
+        await phone.reload(); await phone.locator('#mode-label').click();
+        await phone.locator('#bind-email-form').waitFor();
+        await phone.locator('#bind-email').fill('legacy_ui@example.com');
+        await phone.locator('#bind-password').fill('password-test-123');
+        await phone.locator('#send-bind-code').click();
+        await phone.locator('#bind-status').filter({hasText:'验证码已发送'}).waitFor();
+        await phone.locator('#bind-code').fill(messages.find(m => m.to === 'legacy_ui@example.com').code);
+        await phone.locator('#bind-submit').click();
+        await phone.locator('#account-email-status').filter({hasText:'已验证邮箱：legacy_ui@example.com'}).waitFor();
+        await phone.locator('#disconnect').click();
+        now += 60001;
+        await phone.locator('#auth-recover').click();
+        await phone.locator('#auth-email').fill('ui_alice@example.com');
+        await phone.locator('#send-auth-code').click();
+        await phone.locator('#email-send-status').filter({hasText:'如果该邮箱已绑定账号'}).waitFor();
+        await phone.locator('#auth-code').fill(messages.filter(m => m.to === 'ui_alice@example.com').at(-1).code);
+        await phone.locator('#auth-password').fill('new-ui-password-123');
+        await phone.locator('#auth-confirm').fill('new-ui-password-123');
+        await phone.locator('#auth-submit').click();
+        await phone.locator('#account-name').filter({hasText:'ui_alice'}).waitFor();
+        await desktop.locator('#mode-label').filter({hasText:'登录 / 注册'}).waitFor({timeout:12000});
         assert.equal(db.accounts.length,2); assert.deepEqual(errors,[]);
-        console.log('Account UI passed: register, recovery display, login on second device, sync, complete, logout/cache clearing, isolated second account, mobile layout.');
+        console.log('Account UI passed: register, recovery display, login on second device, sync, complete, logout/cache clearing, isolated second account, mobile layout, legacy email binding and email password recovery.');
     } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(e=>{ console.error(e);server.close();process.exitCode=1; });

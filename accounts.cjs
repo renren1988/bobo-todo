@@ -1,11 +1,14 @@
 const crypto = require('crypto');
 const { promisify } = require('util');
+const { createEmailCodes, createMailer, normalizeEmail } = require('./email.cjs');
 const derive = promisify(crypto.scrypt);
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const same = (a, b) => { const x = Buffer.from(a || ''), y = Buffer.from(b || ''); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
-function createAccounts(db, save) {
-    db.accounts ||= []; db.sessions ||= []; db.schemaVersion = 2;
+function createAccounts(db, save, options = {}) {
+    db.accounts ||= []; db.sessions ||= []; db.schemaVersion = 3;
+    const codes = createEmailCodes(db, save, options.mailer || createMailer(), options.now);
+    const publicUser = user => ({ id: user.id, username: user.username, email: user.email || null, emailVerified: !!user.emailVerifiedAt });
     let busy = 0;
     const attempts = new Map();
     function limit(key) {
@@ -33,7 +36,7 @@ function createAccounts(db, save) {
         const own = db.sessions.filter(s => s.userId === user.id);
         if (own.length >= 20) db.sessions = db.sessions.filter(s => s !== own[0]);
         db.sessions.push({ hash: digest(token), userId: user.id, expires: Date.now() + 30 * 86400000 });
-        save(); return { token, user: { id: user.id, username: user.username } };
+        save(); return { token, user: publicUser(user) };
     }
     function authenticate(req) {
         const token = (req.headers.authorization || '').replace(/^Bearer /, '');
@@ -43,6 +46,39 @@ function createAccounts(db, save) {
         return null;
     }
     async function handle(route, method, data, req) {
+        if (route === 'email-code' && method === 'POST') {
+            const email = normalizeEmail(data.email);
+            if (!['register', 'bind', 'reset'].includes(data.purpose)) throw fail('验证码用途不正确');
+            let owner = '';
+            if (data.purpose === 'bind') {
+                const principal = authenticate(req);
+                if (!principal?.user) throw fail('请先登录账号', 401);
+                const user = principal.user;
+                limit('ip:' + req.socket.remoteAddress); limit('bind:' + user.id);
+                if (user.emailVerifiedAt) throw fail('此账号已绑定邮箱');
+                if (!same(await hash(password(data.password), user.salt), user.passwordHash)) throw fail('当前密码不正确', 401);
+                owner = user.id;
+            }
+            const existing = db.accounts.find(a => a.email === email && a.emailVerifiedAt);
+            if (data.purpose !== 'reset' && existing) throw fail('该邮箱已绑定账号');
+            if (data.purpose === 'reset') owner = existing?.id || 'unknown';
+            return codes.send(email, data.purpose, owner, req.socket.remoteAddress, data.purpose !== 'reset' || !!existing);
+        }
+        if (route === 'email-reset' && method === 'POST') {
+            const email = normalizeEmail(data.email);
+            limit('ip:' + req.socket.remoteAddress); limit('email:' + email);
+            const user = db.accounts.find(a => a.email === email && a.emailVerifiedAt);
+            const challenge = codes.check(data, email, 'reset', user?.id || 'unknown');
+            if (!user) throw fail('验证码无效或已过期，请重新获取');
+            const salt = crypto.randomBytes(16).toString('hex');
+            const passwordHash = await hash(password(data.password), salt);
+            codes.consume(challenge);
+            const recoveryCode = crypto.randomBytes(20).toString('hex');
+            Object.assign(user, { salt, passwordHash, recoveryHash: digest(recoveryCode), subscriptions: [] });
+            codes.clear(user.id);
+            db.sessions = db.sessions.filter(s => s.userId !== user.id);
+            return { ...issue(user), recoveryCode };
+        }
         if (method === 'POST' && ['register', 'login', 'recover'].includes(route)) {
             const name = username(data.username);
             limit('ip:' + req.socket.remoteAddress); limit('name:' + name);
@@ -50,12 +86,18 @@ function createAccounts(db, save) {
             if (route === 'register') {
                 if (user) throw fail('这个账号已被使用');
                 if (db.accounts.length >= 10000) throw fail('暂时无法注册');
+                if (!data.email) throw fail('注册需要邮箱验证，请使用最新版应用或网页版');
+                const email = normalizeEmail(data.email);
+                if (db.accounts.some(a => a.email === email)) throw fail('该邮箱已绑定账号');
+                const challenge = codes.check(data, email, 'register', '');
                 const salt = crypto.randomBytes(16).toString('hex');
                 const passwordHash = await hash(password(data.password), salt);
                 // Another concurrent registration may have completed during scrypt.
                 if (db.accounts.some(a => a.username === name)) throw fail('这个账号已被使用');
+                if (db.accounts.some(a => a.email === email)) throw fail('该邮箱已绑定账号');
+                codes.consume(challenge);
                 const recoveryCode = crypto.randomBytes(20).toString('hex');
-                const record = { id: crypto.randomUUID(), username: name, salt, passwordHash, recoveryHash: digest(recoveryCode), tasks: [], subscriptions: [], created: new Date().toISOString() };
+                const record = { id: crypto.randomUUID(), username: name, email, emailVerifiedAt: new Date().toISOString(), salt, passwordHash, recoveryHash: digest(recoveryCode), tasks: [], subscriptions: [], created: new Date().toISOString() };
                 db.accounts.push(record); return { ...issue(record), recoveryCode };
             }
             if (route === 'login') {
@@ -69,13 +111,25 @@ function createAccounts(db, save) {
             if (user.recoveryHash !== oldRecovery) throw fail('恢复码已经使用', 401);
             const recoveryCode = crypto.randomBytes(20).toString('hex');
             Object.assign(user, { salt, passwordHash, recoveryHash: digest(recoveryCode), subscriptions: [] });
+            codes.clear(user.id);
             db.sessions = db.sessions.filter(s => s.userId !== user.id);
             return { ...issue(user), recoveryCode };
         }
         const principal = authenticate(req);
         if (!principal?.user) throw fail('请登录账号', 401);
         const user = principal.user;
-        if (route === 'me' && method === 'GET') return { user: { id: user.id, username: user.username } };
+        if (route === 'email-bind' && method === 'POST') {
+            limit('ip:' + req.socket.remoteAddress); limit('bind:' + user.id);
+            if (user.emailVerifiedAt) throw fail('此账号已绑定邮箱');
+            const email = normalizeEmail(data.email);
+            if (!same(await hash(password(data.password), user.salt), user.passwordHash)) throw fail('当前密码不正确', 401);
+            const challenge = codes.check(data, email, 'bind', user.id);
+            if (user.emailVerifiedAt || db.accounts.some(a => a.email === email)) throw fail('该账号或邮箱已完成绑定');
+            codes.consume(challenge);
+            user.email = email; user.emailVerifiedAt = new Date().toISOString(); save();
+            return { user: publicUser(user) };
+        }
+        if (route === 'me' && method === 'GET') return { user: publicUser(user) };
         if (route === 'logout' && method === 'POST') {
             db.sessions = db.sessions.filter(s => s !== principal.session);
             user.subscriptions = user.subscriptions.filter(s => s.sessionHash !== principal.session.hash);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Notification, Menu, powerMonitor, net, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Notification, Menu, powerMonitor, net, dialog, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { shouldRemind, reminderKey, sortTasks } = require('../public/shared.js');
@@ -103,15 +103,15 @@ else {
         ipcMain.handle('api-request', async (event, value) => {
             if (!from(event, panel)) throw new Error('Untrusted frame');
             const origin = validateRequest(value);
-            const response = await net.fetch(origin + '/api/' + value.route, { method: value.method, headers: { Authorization: 'Bearer ' + value.token, 'Content-Type': 'application/json' }, body: value.data ? JSON.stringify(value.data) : undefined, redirect: 'error', signal: AbortSignal.timeout(10000) });
+            const response = await net.fetch(origin + '/api/' + value.route, { method: value.method, headers: { Authorization: 'Bearer ' + value.token, 'Content-Type': 'application/json' }, body: value.data ? JSON.stringify(value.data) : undefined, redirect: 'error', signal: AbortSignal.timeout(value.route === 'auth/email-code' ? 45000 : 10000) });
             const data = await response.json(); if (!response.ok) { if (response.status === 401 && value.route === 'tasks') { tasks = []; orb.webContents.send('count', 0); } throw new Error(data.error || '连接失败'); } return data;
         });
         panel.loadURL(base.href);
         panel.once('ready-to-show', () => { if (app.isPackaged && process.platform === 'win32') setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 4000); if (!fs.existsSync(path.join(runtime, 'onboarded'))) { showPanel(); fs.writeFileSync(path.join(runtime, 'onboarded'), '1'); } });
         panel.webContents.on('did-fail-load', (_, code, description) => { console.error(`无法连接待办服务 (${code}): ${description}。请先启动服务或设置 BOBO_URL。`); });
         for (const win of [panel, orb]) {
-            win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-            win.webContents.on('will-navigate', (event, url) => { if (win === orb || new URL(url).origin !== base.origin) event.preventDefault(); });
+            win.webContents.setWindowOpenHandler(({ url }) => { if (win === panel && url === 'https://github.com/renren1988/bobo-todo/releases') shell.openExternal(url); return { action: 'deny' }; });
+            win.webContents.on('will-navigate', (event, url) => { if (win === orb || new URL(url).origin !== base.origin) { event.preventDefault(); if (win === panel && url === 'https://github.com/renren1988/bobo-todo/releases') shell.openExternal(url); } });
         }
         panel.on('close', e => { if (!quitting) { e.preventDefault(); panel.hide(); } });
         orb.webContents.on('context-menu', () => Menu.buildFromTemplate([{ label: '打开啵啵待办', click: () => showPanel() }, { label: '收起清单', click: () => panel.hide() }, { type: 'separator' }, { label: '退出啵啵（停止电脑提醒）', click: () => app.quit() }]).popup({ window: orb }));
